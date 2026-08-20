@@ -44,7 +44,7 @@ Plugin to convert measurements between imperial and metric.
 Use the command palette, right click menu or select text and run commands.
 
 ### Examples:
-- Convert a simple value: select `12 ft` and run "Convert selection to Metric" → `3.66 m` (default 2 decimals)
+- Convert a simple value: select `12 ft` and run "Convert selection" → `3.66 m` (default 2 decimals)
 - Mixed units: select `5 ft 3 in` → converts to `1.60 m`
 - Fractions: select `1 1/2 in` → converts to `3.81 cm`
 - Insert original + converted: select `12 ft` and run "Insert original + converted" → `12 ft (3.66 m)`

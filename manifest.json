@@ -6,5 +6,5 @@
   "description": "Plugin to convert measurements between imperial and metric.",
   "author": "p0shkar",
   "authorUrl": "https://github.com/p0shkar",
-  "main": "main.js"
+  "isDesktopOnly": false
 }

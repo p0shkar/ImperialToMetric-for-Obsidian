@@ -16,16 +16,16 @@ Use the command palette, right click menu or select text and run commands.
 - Convert selection: replaces
 - Insert original + converted: inserts `original (converted)` so you can keep both.
 - Input: prompts for an input value which is displayed but not inserted into the document.
-![Convert](.github\Convert.gif)
+<img src="https://github.com/p0shkar/ImperialToMetric-for-Obsidian/blob/main/.github/Convert.gif" alt="Convert">
 
 ### Hover Preview
 - Toggle: inline hover preview to show converted values on mouseover in the editor.
 - Different decimal settings: you can configure how many decimals the converted value will be and set a different number of decimals that the hover preview will show.
-![Hover Preview](.github\Hover.gif)
+<img src="https://github.com/p0shkar/ImperialToMetric-for-Obsidian/blob/main/.github/Hover.gif" alt="Hover">
 
 ### Auto-Convert on Paste
 - Toggle: auto-convert pasted measurements into the active editor (opt-in setting).
-![Auto-Convert on Paste](.github\Paste.gif)
+<img src="https://github.com/p0shkar/ImperialToMetric-for-Obsidian/blob/main/.github/Paste.gif" alt="Auto-Convert on Paste">
 
 ### Parsing
 - Parses fractions (`1/2`), mixed numbers (`1 1/2`) and mixed-unit expressions (`5 ft 3 in`).
@@ -42,7 +42,7 @@ Use the command palette, right click menu or select text and run commands.
 - Specify number of decimals when converting and when hovering
 - Define preferred units of measurements or set it to auto to let the plugin decide
 - Toggle Inline Hover and Auto-Convert on Paste settings.
-![Settings](.github\Settings.png)
+<img src="https://github.com/p0shkar/ImperialToMetric-for-Obsidian/blob/main/.github/Settings.png" alt="Settings">
 
 ## Known limitations:
 - Parsing relies on heuristics and regexes; some complex or ambiguous text may not be parsed correctly.

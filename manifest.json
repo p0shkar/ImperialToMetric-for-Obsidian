@@ -1,0 +1,10 @@
+{
+  "id": "imperial-to-metric",
+  "name": "Imperial ⇄ Metric Converter",
+  "version": "0.1.0",
+  "minAppVersion": "0.9.12",
+  "description": "Plugin to convert measurements between imperial and metric.",
+  "author": "p0shkar",
+  "authorUrl": "https://github.com/p0shkar",
+  "main": "main.js"
+}

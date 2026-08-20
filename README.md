@@ -56,7 +56,7 @@ Use the command palette, right click menu or select text and run commands.
 2. Go to Settings -> Community plugins.
 3. Make sure Safe Mode is off.
 4. Click Browse.
-5. Search for "Imperial ⇄ Metric Converter".
+5. Search for "Imperial to Metric Converter".
 6. Click Install, then Enable.
 7. Open the plugin settings and configure your LibreTranslate server URL and language preferences.
 

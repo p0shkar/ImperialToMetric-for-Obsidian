@@ -61,6 +61,7 @@ Use the command palette, right click menu or select text and run commands.
 - Change "mL" to "ml".
 - Add support for ranges (eg. "10-15 ft" or "3-5 cm").
 - Make dynamic options for the toggles, eg. make the text change in the right click menu and command palette update from "enable ..." to "disable ..." instead of the more general "toggle ...".
+- Background color selection for the inline hover.
 
 ## Install from the Obsidian Community Plugin store
 1. Open Obsidian.

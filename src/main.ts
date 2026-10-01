@@ -11,10 +11,13 @@ interface ImperialMetricSettings {
   preferredMetricLengthUnit: 'auto'|'mm'|'cm'|'m'|'km'|'m+cm';
   preferredImperialLengthUnit: 'auto'|'in'|'ft'|'yd'|'mi';
   preferredImperialMassUnit: 'auto'|'oz'|'lb'|'st'|'ton';
-  preferredImperialVolumeUnit: 'auto'|'cup'|'pt'|'gal';
+  preferredImperialVolumeUnit: 'auto'|'cup'|'pt'|'gal'|'qt'|'fl-oz'|'tbsp'|'tsp'|'gill';
   imperialTonType: 'short'|'metric';
+  liquidMeasureType: 'us'|'imperial';
   inlineHoverEnabled: boolean;
+  hoverBackgroundColor: string;
   autoConvertOnPaste: boolean;
+  pasteOutputMode: 'original-and-converted'|'converted-only';
 }
 
 const DEFAULT_SETTINGS: ImperialMetricSettings = {
@@ -26,8 +29,11 @@ const DEFAULT_SETTINGS: ImperialMetricSettings = {
   preferredImperialMassUnit: 'auto',
   preferredImperialVolumeUnit: 'auto',
   imperialTonType: 'short',
+  liquidMeasureType: 'us',
   inlineHoverEnabled: false,
+  hoverBackgroundColor: '',
   autoConvertOnPaste: false,
+  pasteOutputMode: 'original-and-converted',
 };
 
 export default class ImperialMetricPlugin extends Plugin {
@@ -54,7 +60,7 @@ export default class ImperialMetricPlugin extends Plugin {
 
   convertText(text: string, toSystem: 'metric'|'imperial', decimals?: number){
     const dec = typeof decimals === 'number' ? decimals : this.settings.decimals;
-    return convertOnce(text, toSystem, dec, this.settings.preferredMetricLengthUnit, this.settings.preferredImperialLengthUnit, this.settings.preferredImperialMassUnit, this.settings.preferredImperialVolumeUnit, this.settings.imperialTonType);
+    return convertOnce(text, toSystem, dec, this.settings.preferredMetricLengthUnit, this.settings.preferredImperialLengthUnit, this.settings.preferredImperialMassUnit, this.settings.preferredImperialVolumeUnit, this.settings.imperialTonType, this.settings.liquidMeasureType);
   }
 
   async onload() {
@@ -65,6 +71,9 @@ export default class ImperialMetricPlugin extends Plugin {
 
   onunload() {
     disableHover(this);
-    if (this.pasteHandler) document.removeEventListener('paste', this.pasteHandler);
+    if (this.pasteHandler) {
+      try { document.removeEventListener('paste', this.pasteHandler, true); } catch(e){}
+      this.pasteHandler = null;
+    }
   }
 }

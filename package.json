@@ -1,13 +1,14 @@
 {
   "name": "imperial-to-metric",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Plugin to convert measurements between imperial and metric.",
   "license": "MIT",
   "author": "",
   "type": "commonjs",
   "main": "main.js",
   "scripts": {
-    "build": "node esbuild.config.mjs production"
+    "build": "node esbuild.config.mjs production",
+    "test": "node --test"
   },
   "keywords": [
     "obsidian",

@@ -8,6 +8,7 @@ interface ImperialMetricSettings {
   defaultTarget: 'metric'|'imperial';
   decimals: number;
   hoverDecimals: number;
+  roundingMode: 'fixed-decimals'|'practical-precision'|'whole-units';
   preferredMetricLengthUnit: 'auto'|'mm'|'cm'|'m'|'km'|'m+cm';
   preferredImperialLengthUnit: 'auto'|'in'|'ft'|'yd'|'mi';
   preferredImperialMassUnit: 'auto'|'oz'|'lb'|'st'|'ton';
@@ -24,6 +25,7 @@ const DEFAULT_SETTINGS: ImperialMetricSettings = {
   defaultTarget: 'imperial',
   decimals: 2,
   hoverDecimals: 2,
+  roundingMode: 'fixed-decimals',
   preferredMetricLengthUnit: 'auto',
   preferredImperialLengthUnit: 'ft',
   preferredImperialMassUnit: 'auto',
@@ -60,7 +62,7 @@ export default class ImperialMetricPlugin extends Plugin {
 
   convertText(text: string, toSystem: 'metric'|'imperial', decimals?: number){
     const dec = typeof decimals === 'number' ? decimals : this.settings.decimals;
-    return convertOnce(text, toSystem, dec, this.settings.preferredMetricLengthUnit, this.settings.preferredImperialLengthUnit, this.settings.preferredImperialMassUnit, this.settings.preferredImperialVolumeUnit, this.settings.imperialTonType, this.settings.liquidMeasureType);
+    return convertOnce(text, toSystem, dec, this.settings.preferredMetricLengthUnit, this.settings.preferredImperialLengthUnit, this.settings.preferredImperialMassUnit, this.settings.preferredImperialVolumeUnit, this.settings.imperialTonType, this.settings.liquidMeasureType, this.settings.roundingMode);
   }
 
   async onload() {

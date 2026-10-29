@@ -1,6 +1,6 @@
 {
   "name": "imperial-to-metric",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Plugin to convert measurements between imperial and metric.",
   "license": "MIT",
   "author": "",

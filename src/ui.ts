@@ -97,6 +97,17 @@ export class ImperialMetricSettingTab extends PluginSettingTab {
         .onChange(async (v) => { const n = Math.max(0, Math.min(6, parseInt(v) || 0)); this.plugin.settings.decimals = n; await this.plugin.saveSettings(); })
       );
 
+    new Setting(containerEl)
+      .setName('Rounding mode')
+      .setDesc('Fixed decimals preserves the decimal-place settings. Practical precision uses precision suited to the output unit and removes trailing zeros. Whole units rounds to the nearest displayed unit.')
+      .addDropdown(drop => drop
+        .addOption('fixed-decimals', 'Fixed decimals')
+        .addOption('practical-precision', 'Practical precision')
+        .addOption('whole-units', 'Whole units')
+        .setValue(this.plugin.settings.roundingMode)
+        .onChange(async (v) => { this.plugin.settings.roundingMode = v as any; await this.plugin.saveSettings(); })
+      );
+
     containerEl.createEl('h3', { text: 'Preferred output units' });
     new Setting(containerEl)
       .setName('Preferred metric length unit')

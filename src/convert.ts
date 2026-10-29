@@ -13,6 +13,14 @@ const IMPERIAL_VOLUME_UK: Record<string, number> = {
 const METRIC_VOLUME: Record<string, number> = { ml:0.001, l:1 };
 const TON_SHORT = 907184.74;
 const TON_METRIC = 1000000;
+type RoundingMode = 'fixed-decimals'|'practical-precision'|'whole-units';
+const PRACTICAL_DECIMALS: Record<string, number> = {
+  mm: 0, cm: 1, m: 2, km: 3,
+  in: 1, ft: 2, yd: 2, mi: 3,
+  g: 0, kg: 2, t: 3, oz: 1, lb: 1, st: 2, ton: 3,
+  ml: 1, l: 2, cup: 1, pt: 1, qt: 2, gal: 2, 'fl-oz': 1, tbsp: 1, tsp: 1, gill: 1,
+  c: 1, f: 1
+};
 
 const UNIT_ALIASES: Record<string, string> = {
   'inch': 'in', 'inches': 'in', 'in': 'in', '"':'in',
@@ -63,7 +71,7 @@ UNIT_ALIASES['long ton'] = 'long-ton'; UNIT_ALIASES['long tons'] = 'long-ton';
 function normalizeUnit(u: string) { return u.toLowerCase().replace(/\./g, ''); }
 
 const RANGE_REGEX = /(\d[\d,\s\./]*(?:[a-zA-Z°\."']+)?)\s*([–—-])\s*(\d[\d,\s\./]*(?:[a-zA-Z°\."']+)?)/;
-const NUMBER_UNIT_RE = /([-+]?\d{1,3}(?:,\d{3})+(?:\.\d+)?|[-+]?\d*\s*\d+\/\d+|[-+]?\d*\.\d+|[-+]?\d+)\s*((?:(?:short|long)\s+tons?|fluid\s+ounces?|fl\s+oz|floz|ounces?|[a-zA-Z°\."']+))(?:\s*\((US|UK|Imperial)\))?/gi;
+const NUMBER_UNIT_RE = /([-+]?\d{1,3}(?:,\d{3})+(?:\.\d+)?|[-+]?\d*\s*\d+\/\d+|[-+]?\d*\.\d+|[-+]?\d+)\s*-?\s*((?:(?:short|long)\s+tons?|fluid\s+ounces?|fl\s+oz|floz|ounces?|[a-zA-Z°\."']+))(?:\s*\((US|UK|Imperial)\))?/gi;
 const FRACTION_RE = /^(?:([-+]?\d+)\s+)?(\d+)\/(\d+)$/;
 
 export function parseNumberString(nstr: string) {
@@ -157,62 +165,78 @@ export function toBaseVariant(value: number, unit: string, tonType: 'short'|'met
   return null;
 }
 
-function formatMetricLengthMixed(meters:number, decimals:number){
+function formatNumber(value: number, decimals: number, roundingMode: RoundingMode, unit: string){
+  const places = roundingMode === 'whole-units' ? 0 :
+    roundingMode === 'practical-precision' ? (PRACTICAL_DECIMALS[unit] ?? decimals) : decimals;
+  const formatted = value.toFixed(places);
+  return roundingMode === 'practical-precision'
+    ? formatted.replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '')
+    : formatted;
+}
+
+function formatMetricLengthMixed(meters:number, decimals:number, roundingMode: RoundingMode){
   const metersInt = Math.floor(meters);
   const cm = (meters - metersInt) * 100;
-  if (metersInt > 0) return `${metersInt} m ${cm.toFixed(decimals)} cm`;
-  return `${cm.toFixed(decimals)} cm`;
+  if (roundingMode === 'fixed-decimals') {
+    if (metersInt > 0) return `${metersInt} m ${cm.toFixed(decimals)} cm`;
+    return `${cm.toFixed(decimals)} cm`;
+  }
+  const roundedCm = Number(formatNumber(cm, decimals, roundingMode, 'cm'));
+  if (roundedCm >= 100) return `${metersInt + 1} m`;
+  if (metersInt > 0 && roundedCm === 0) return `${metersInt} m`;
+  if (metersInt > 0) return `${metersInt} m ${formatNumber(cm, decimals, roundingMode, 'cm')} cm`;
+  return `${formatNumber(cm, decimals, roundingMode, 'cm')} cm`;
 }
 
-function formatMetricLength(meters:number, decimals:number, preferred:'auto'|'mm'|'cm'|'m'|'km'|'m+cm' = 'auto'){
+function formatMetricLength(meters:number, decimals:number, preferred:'auto'|'mm'|'cm'|'m'|'km'|'m+cm' = 'auto', roundingMode: RoundingMode = 'fixed-decimals'){
   if (preferred !== 'auto'){
     switch(preferred){
-      case 'km': return `${(meters/1000).toFixed(decimals)} km`;
-      case 'm+cm': return formatMetricLengthMixed(meters, decimals);
-      case 'm': return `${meters.toFixed(decimals)} m`;
-      case 'cm': return `${(meters*100).toFixed(decimals)} cm`;
-      case 'mm': return `${(meters*1000).toFixed(decimals)} mm`;
+      case 'km': return `${formatNumber(meters/1000, decimals, roundingMode, 'km')} km`;
+      case 'm+cm': return formatMetricLengthMixed(meters, decimals, roundingMode);
+      case 'm': return `${formatNumber(meters, decimals, roundingMode, 'm')} m`;
+      case 'cm': return `${formatNumber(meters*100, decimals, roundingMode, 'cm')} cm`;
+      case 'mm': return `${formatNumber(meters*1000, decimals, roundingMode, 'mm')} mm`;
     }
   }
-  if (meters >= 1000) return `${(meters/1000).toFixed(decimals)} km`;
-  if (meters >= 1) return `${meters.toFixed(decimals)} m`;
-  if (meters >= 0.01) return `${(meters*100).toFixed(decimals)} cm`;
-  return `${(meters*1000).toFixed(decimals)} mm`;
+  if (meters >= 1000) return `${formatNumber(meters/1000, decimals, roundingMode, 'km')} km`;
+  if (meters >= 1) return `${formatNumber(meters, decimals, roundingMode, 'm')} m`;
+  if (meters >= 0.01) return `${formatNumber(meters*100, decimals, roundingMode, 'cm')} cm`;
+  return `${formatNumber(meters*1000, decimals, roundingMode, 'mm')} mm`;
 }
 
-function formatMetricMass(grams:number, decimals:number){ if (grams >= 1000) return `${(grams/1000).toFixed(decimals)} kg`; return `${grams.toFixed(decimals)} g`; }
-function formatMetricVolume(liters:number, decimals:number){ if (liters >= 1) return `${liters.toFixed(decimals)} L`; return `${(liters*1000).toFixed(decimals)} ml`; }
-function formatImperialLength(meters:number, decimals:number, preferred:'auto'|'in'|'ft'|'yd'|'mi' = 'auto'){
+function formatMetricMass(grams:number, decimals:number, roundingMode: RoundingMode){ if (grams >= 1000) return `${formatNumber(grams/1000, decimals, roundingMode, 'kg')} kg`; return `${formatNumber(grams, decimals, roundingMode, 'g')} g`; }
+function formatMetricVolume(liters:number, decimals:number, roundingMode: RoundingMode){ if (liters >= 1) return `${formatNumber(liters, decimals, roundingMode, 'l')} L`; return `${formatNumber(liters*1000, decimals, roundingMode, 'ml')} ml`; }
+function formatImperialLength(meters:number, decimals:number, preferred:'auto'|'in'|'ft'|'yd'|'mi' = 'auto', roundingMode: RoundingMode = 'fixed-decimals'){
   if (preferred !== 'auto'){
     switch(preferred){
-      case 'mi': return `${(meters/1609.344).toFixed(decimals)} mi`;
-      case 'yd': return `${(meters/0.9144).toFixed(decimals)} yd`;
-      case 'ft': return `${(meters/0.3048).toFixed(decimals)} ft`;
-      case 'in': return `${(meters/0.0254).toFixed(decimals)} in`;
+      case 'mi': return `${formatNumber(meters/1609.344, decimals, roundingMode, 'mi')} mi`;
+      case 'yd': return `${formatNumber(meters/0.9144, decimals, roundingMode, 'yd')} yd`;
+      case 'ft': return `${formatNumber(meters/0.3048, decimals, roundingMode, 'ft')} ft`;
+      case 'in': return `${formatNumber(meters/0.0254, decimals, roundingMode, 'in')} in`;
     }
   }
-  if (meters >= 1609.344) return `${(meters/1609.344).toFixed(decimals)} mi`;
-  if (meters >= 0.9144) return `${(meters/0.9144).toFixed(decimals)} yd`;
-  if (meters >= 0.3048) return `${(meters/0.3048).toFixed(decimals)} ft`;
-  return `${(meters/0.0254).toFixed(decimals)} in`;
+  if (meters >= 1609.344) return `${formatNumber(meters/1609.344, decimals, roundingMode, 'mi')} mi`;
+  if (meters >= 0.9144) return `${formatNumber(meters/0.9144, decimals, roundingMode, 'yd')} yd`;
+  if (meters >= 0.3048) return `${formatNumber(meters/0.3048, decimals, roundingMode, 'ft')} ft`;
+  return `${formatNumber(meters/0.0254, decimals, roundingMode, 'in')} in`;
 }
-function formatImperialMass(grams:number, decimals:number, preferred:'auto'|'oz'|'lb'|'st'|'ton' = 'auto', tonType: 'short'|'metric' = 'short'){
+function formatImperialMass(grams:number, decimals:number, preferred:'auto'|'oz'|'lb'|'st'|'ton' = 'auto', tonType: 'short'|'metric' = 'short', roundingMode: RoundingMode = 'fixed-decimals'){
   const tonDiv = tonType === 'metric' ? TON_METRIC : TON_SHORT;
   if (preferred !== 'auto'){
     switch(preferred){
-      case 'ton': return `${(grams/tonDiv).toFixed(decimals)} ton`;
-      case 'st': return `${(grams/6350.29318).toFixed(decimals)} st`;
-      case 'lb': return `${(grams/453.59237).toFixed(decimals)} lb`;
-      case 'oz': return `${(grams/28.349523125).toFixed(decimals)} oz`;
+      case 'ton': return `${formatNumber(grams/tonDiv, decimals, roundingMode, 'ton')} ton`;
+      case 'st': return `${formatNumber(grams/6350.29318, decimals, roundingMode, 'st')} st`;
+      case 'lb': return `${formatNumber(grams/453.59237, decimals, roundingMode, 'lb')} lb`;
+      case 'oz': return `${formatNumber(grams/28.349523125, decimals, roundingMode, 'oz')} oz`;
     }
   }
-  if (grams >= tonDiv) return `${(grams/tonDiv).toFixed(decimals)} ton`;
-  if (grams >= 6350.29318) return `${(grams/6350.29318).toFixed(decimals)} st`;
-  if (grams >= 453.59237) return `${(grams/453.59237).toFixed(decimals)} lb`;
-  return `${(grams/28.349523125).toFixed(decimals)} oz`;
+  if (grams >= tonDiv) return `${formatNumber(grams/tonDiv, decimals, roundingMode, 'ton')} ton`;
+  if (grams >= 6350.29318) return `${formatNumber(grams/6350.29318, decimals, roundingMode, 'st')} st`;
+  if (grams >= 453.59237) return `${formatNumber(grams/453.59237, decimals, roundingMode, 'lb')} lb`;
+  return `${formatNumber(grams/28.349523125, decimals, roundingMode, 'oz')} oz`;
 }
 
-function formatImperialVolume(liters:number, decimals:number, preferred:'auto'|'cup'|'pt'|'gal'|'qt'|'fl-oz'|'tbsp'|'tsp'|'gill' = 'auto', liquidMeasureType: 'us'|'imperial' = 'us'){
+function formatImperialVolume(liters:number, decimals:number, preferred:'auto'|'cup'|'pt'|'gal'|'qt'|'fl-oz'|'tbsp'|'tsp'|'gill' = 'auto', liquidMeasureType: 'us'|'imperial' = 'us', roundingMode: RoundingMode = 'fixed-decimals'){
   const map = liquidMeasureType === 'imperial' ? IMPERIAL_VOLUME_UK : IMPERIAL_VOLUME_US;
   const gal = map.gal;
   const qt = map.qt;
@@ -220,33 +244,33 @@ function formatImperialVolume(liters:number, decimals:number, preferred:'auto'|'
   const cup = map.cup;
   if (preferred !== 'auto'){
     switch(preferred){
-      case 'gal': return `${(liters/gal).toFixed(decimals)} gal`;
-      case 'qt': return `${(liters/qt).toFixed(decimals)} qt`;
-      case 'pt': return `${(liters/pt).toFixed(decimals)} pt`;
-      case 'cup': return `${(liters/cup).toFixed(decimals)} cup`;
-      case 'fl-oz': return `${(liters/map['fl-oz']).toFixed(decimals)} fl oz`;
-      case 'tbsp': return `${(liters/map.tbsp).toFixed(decimals)} tbsp`;
-      case 'tsp': return `${(liters/map.tsp).toFixed(decimals)} tsp`;
-      case 'gill': return `${(liters/map.gill).toFixed(decimals)} gill`;
+      case 'gal': return `${formatNumber(liters/gal, decimals, roundingMode, 'gal')} gal`;
+      case 'qt': return `${formatNumber(liters/qt, decimals, roundingMode, 'qt')} qt`;
+      case 'pt': return `${formatNumber(liters/pt, decimals, roundingMode, 'pt')} pt`;
+      case 'cup': return `${formatNumber(liters/cup, decimals, roundingMode, 'cup')} cup`;
+      case 'fl-oz': return `${formatNumber(liters/map['fl-oz'], decimals, roundingMode, 'fl-oz')} fl oz`;
+      case 'tbsp': return `${formatNumber(liters/map.tbsp, decimals, roundingMode, 'tbsp')} tbsp`;
+      case 'tsp': return `${formatNumber(liters/map.tsp, decimals, roundingMode, 'tsp')} tsp`;
+      case 'gill': return `${formatNumber(liters/map.gill, decimals, roundingMode, 'gill')} gill`;
     }
   }
-  if (liters >= gal) return `${(liters/gal).toFixed(decimals)} gal`;
-  if (liters >= qt) return `${(liters/qt).toFixed(decimals)} qt`;
-  if (liters >= pt) return `${(liters/pt).toFixed(decimals)} pt`;
-  if (liters >= cup) return `${(liters/cup).toFixed(decimals)} cup`;
-  if (liters >= map['fl-oz']) return `${(liters/map['fl-oz']).toFixed(decimals)} fl oz`;
-  if (liters >= map.tbsp) return `${(liters/map.tbsp).toFixed(decimals)} tbsp`;
-  return `${(liters/map.tsp).toFixed(decimals)} tsp`;
+  if (liters >= gal) return `${formatNumber(liters/gal, decimals, roundingMode, 'gal')} gal`;
+  if (liters >= qt) return `${formatNumber(liters/qt, decimals, roundingMode, 'qt')} qt`;
+  if (liters >= pt) return `${formatNumber(liters/pt, decimals, roundingMode, 'pt')} pt`;
+  if (liters >= cup) return `${formatNumber(liters/cup, decimals, roundingMode, 'cup')} cup`;
+  if (liters >= map['fl-oz']) return `${formatNumber(liters/map['fl-oz'], decimals, roundingMode, 'fl-oz')} fl oz`;
+  if (liters >= map.tbsp) return `${formatNumber(liters/map.tbsp, decimals, roundingMode, 'tbsp')} tbsp`;
+  return `${formatNumber(liters/map.tsp, decimals, roundingMode, 'tsp')} tsp`;
 }
 
-export function convertOnce(text: string, toSystem: 'metric'|'imperial', decimals: number, preferredMetricLength: 'auto'|'mm'|'cm'|'m'|'km'|'m+cm' = 'auto', preferredImperialLength: 'auto'|'in'|'ft'|'yd'|'mi' = 'auto', preferredImperialMass: 'auto'|'oz'|'lb'|'st'|'ton' = 'auto', preferredImperialVolume: 'auto'|'cup'|'pt'|'gal'|'qt'|'fl-oz'|'tbsp'|'tsp'|'gill' = 'auto', tonType: 'short'|'metric' = 'short', liquidMeasureType: 'us'|'imperial' = 'us'): string | null {
+export function convertOnce(text: string, toSystem: 'metric'|'imperial', decimals: number, preferredMetricLength: 'auto'|'mm'|'cm'|'m'|'km'|'m+cm' = 'auto', preferredImperialLength: 'auto'|'in'|'ft'|'yd'|'mi' = 'auto', preferredImperialMass: 'auto'|'oz'|'lb'|'st'|'ton' = 'auto', preferredImperialVolume: 'auto'|'cup'|'pt'|'gal'|'qt'|'fl-oz'|'tbsp'|'tsp'|'gill' = 'auto', tonType: 'short'|'metric' = 'short', liquidMeasureType: 'us'|'imperial' = 'us', roundingMode: RoundingMode = 'fixed-decimals'): string | null {
   const parsed = parseNumberUnit(text);
   if (!parsed) return null;
   if ((parsed as any).range) {
     const leftRaw = (parsed as any).range[0].raw;
     const rightRaw = (parsed as any).range[1].raw;
-    const left: string | null = convertOnce(leftRaw, toSystem, decimals, preferredMetricLength, preferredImperialLength, preferredImperialMass, preferredImperialVolume, tonType, liquidMeasureType);
-    const right: string | null = convertOnce(rightRaw, toSystem, decimals, preferredMetricLength, preferredImperialLength, preferredImperialMass, preferredImperialVolume, tonType, liquidMeasureType);
+    const left: string | null = convertOnce(leftRaw, toSystem, decimals, preferredMetricLength, preferredImperialLength, preferredImperialMass, preferredImperialVolume, tonType, liquidMeasureType, roundingMode);
+    const right: string | null = convertOnce(rightRaw, toSystem, decimals, preferredMetricLength, preferredImperialLength, preferredImperialMass, preferredImperialVolume, tonType, liquidMeasureType, roundingMode);
     if (!left || !right) return null;
     const start = (parsed as any).index as number;
     const raw = (parsed as any).raw as string;
@@ -271,16 +295,16 @@ export function convertOnce(text: string, toSystem: 'metric'|'imperial', decimal
   const format = (base: number, category: string) => {
     if (category === 'temperature'){
       const value = toSystem === 'metric' ? base : base * 9 / 5 + 32;
-      return `${value.toFixed(decimals)} °${toSystem === 'metric' ? 'C' : 'F'}`;
+      return `${formatNumber(value, decimals, roundingMode, toSystem === 'metric' ? 'c' : 'f')} °${toSystem === 'metric' ? 'C' : 'F'}`;
     }
     if (toSystem === 'metric'){
-      if (category === 'length') return formatMetricLength(base, decimals, preferredMetricLength);
-      if (category === 'mass') return formatMetricMass(base, decimals);
-      if (category === 'volume') return formatMetricVolume(base, decimals);
+      if (category === 'length') return formatMetricLength(base, decimals, preferredMetricLength, roundingMode);
+      if (category === 'mass') return formatMetricMass(base, decimals, roundingMode);
+      if (category === 'volume') return formatMetricVolume(base, decimals, roundingMode);
     } else {
-      if (category === 'length') return formatImperialLength(base, decimals, preferredImperialLength);
-      if (category === 'mass') return formatImperialMass(base, decimals, preferredImperialMass, tonType);
-      if (category === 'volume') return formatImperialVolume(base, decimals, preferredImperialVolume, liquidMeasureType);
+      if (category === 'length') return formatImperialLength(base, decimals, preferredImperialLength, roundingMode);
+      if (category === 'mass') return formatImperialMass(base, decimals, preferredImperialMass, tonType, roundingMode);
+      if (category === 'volume') return formatImperialVolume(base, decimals, preferredImperialVolume, liquidMeasureType, roundingMode);
     }
     return null;
   };

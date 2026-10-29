@@ -55,7 +55,16 @@ export function enableHover(plugin: any){
     if (now - (plugin.lastHoverAt || 0) < 80) return;
     plugin.lastHoverAt = now;
     const t = e.target as HTMLElement;
-    const line = t ? t.closest('.cm-line') as HTMLElement : null;
+    const line = t ? t.closest(
+      '.cm-line, .markdown-preview-view p, .markdown-preview-view li, ' +
+      '.markdown-preview-view h1, .markdown-preview-view h2, .markdown-preview-view h3, ' +
+      '.markdown-preview-view h4, .markdown-preview-view h5, .markdown-preview-view h6, ' +
+      '.markdown-preview-view blockquote, .markdown-preview-view td, .markdown-preview-view th, ' +
+      '.markdown-preview-view pre, .markdown-preview-view .callout-title, ' +
+      '.callout p, .callout li, .callout h1, .callout h2, .callout h3, .callout h4, ' +
+      '.callout h5, .callout h6, .callout blockquote, .callout td, .callout th, ' +
+      '.callout pre, .callout .callout-title'
+    ) as HTMLElement | null : null;
     const text = line?.textContent || '';
     const offset = line ? textOffsetAtPoint(line, e.clientX, e.clientY) : null;
     const parsed = text ? parseNumberUnit(text) : null;

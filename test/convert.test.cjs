@@ -31,13 +31,33 @@ const convert = (value, target = 'metric', options = {}) => converter.convertOnc
   options.imperialMass ?? 'auto',
   options.imperialVolume ?? 'auto',
   options.tonType ?? 'short',
-  options.liquidMeasureType ?? 'us'
+  options.liquidMeasureType ?? 'us',
+  options.roundingMode ?? 'fixed-decimals'
 );
 
 test('converts simple and fractional measurements', () => {
   assert.equal(convert('12 ft'), '3.66 m');
   assert.equal(convert('1 1/2 in'), '3.81 cm');
   assert.equal(convert('12 inches'), '30.48 cm');
+});
+
+test('supports practical precision and whole-unit rounding by output unit', () => {
+  assert.equal(convert('1 ft', 'metric', { roundingMode: 'practical-precision' }), '30.5 cm');
+  assert.equal(convert('1 lb', 'metric', { roundingMode: 'practical-precision' }), '454 g');
+  assert.equal(convert('1 fl oz', 'metric', { roundingMode: 'practical-precision' }), '29.6 ml');
+  assert.equal(convert('1 m', 'imperial', { roundingMode: 'practical-precision' }), '1.09 yd');
+  assert.equal(convert('100 C', 'imperial', { roundingMode: 'practical-precision' }), '212 °F');
+  assert.equal(convert('1 ft', 'metric', { roundingMode: 'whole-units' }), '30 cm');
+  assert.equal(convert('1 lb', 'metric', { roundingMode: 'whole-units' }), '454 g');
+  assert.equal(convert('1 fl oz', 'metric', { roundingMode: 'whole-units' }), '30 ml');
+  assert.equal(convert('1.999 m', 'metric', { metricLength: 'm+cm', roundingMode: 'whole-units' }), '2 m');
+  assert.equal(convert('1.9995 m', 'metric', { metricLength: 'm+cm', roundingMode: 'practical-precision' }), '2 m');
+  assert.equal(convert('1-2 ft', 'metric', { roundingMode: 'whole-units' }), '30 cm-61 cm');
+});
+
+test('converts hyphenated measurements', () => {
+  assert.equal(convert('90-foot'), '27.43 m');
+  assert.equal(convert('A 90-foot rope.'), 'A 27.43 m rope.');
 });
 
 test('preserves punctuation and Markdown around converted values', () => {

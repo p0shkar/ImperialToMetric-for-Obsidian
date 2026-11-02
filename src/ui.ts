@@ -1,5 +1,14 @@
 import { Modal, PluginSettingTab, Setting, Notice } from 'obsidian';
 import { enableHover, disableHover } from './hover';
+import type { LiquidMeasureUnit } from './convert';
+
+function descriptionWithHotkey(description: string, hotkey: string): DocumentFragment {
+  const fragment = document.createDocumentFragment();
+  fragment.append(description);
+  fragment.append(document.createElement('br'));
+  fragment.append(`Default hotkey: ${hotkey} (customizable in Settings → Hotkeys).`);
+  return fragment;
+}
 
 export class PromptModal extends Modal {
   onSubmit: (val:string, target:'auto'|'metric'|'imperial')=>void;
@@ -223,7 +232,10 @@ export class ImperialMetricSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName('Inline hover preview')
-      .setDesc('Show a conversion preview only while the pointer is over a recognized measurement in the editor.')
+      .setDesc(descriptionWithHotkey(
+        'Show a conversion preview only while the pointer is over a recognized measurement in the editor.',
+        'Mod+Shift+H'
+      ))
       .addToggle(t => t.setValue(this.plugin.settings.inlineHoverEnabled).onChange(async (v) => {
         this.plugin.settings.inlineHoverEnabled = v;
         if (v) enableHover(this.plugin); else disableHover(this.plugin);
@@ -232,9 +244,21 @@ export class ImperialMetricSettingTab extends PluginSettingTab {
       }));
 
     containerEl.createEl('h3', { text: 'Paste & input' });
+    const pasteStatus = containerEl.createEl('p', { cls: 'setting-item-description' });
+    this.plugin.updatePasteStatus = () => {
+      const enabled = this.plugin.settings.autoConvertOnPaste;
+      const mode = this.plugin.settings.pasteOutputMode === 'original-and-converted'
+        ? 'Original + converted'
+        : 'Converted only';
+      pasteStatus.setText(`Auto-convert on paste: ${enabled ? 'On' : 'Off'} · Output format: ${mode}.`);
+    };
+    this.plugin.updatePasteStatus();
     new Setting(containerEl)
       .setName('Auto-convert on paste')
-      .setDesc('When pasted text contains a measurement, insert the converted text using the selected paste output format. The default target is used only when the source system cannot be detected.')
+      .setDesc(descriptionWithHotkey(
+        'When pasted text contains a measurement, insert the converted text using the selected paste output format. The default target is used only when the source system cannot be detected.',
+        'Mod+Shift+P'
+      ))
       .addToggle(t => t.setValue(this.plugin.settings.autoConvertOnPaste).onChange(async (v) => {
         this.plugin.settings.autoConvertOnPaste = v;
         if (v) {
@@ -245,23 +269,84 @@ export class ImperialMetricSettingTab extends PluginSettingTab {
           unbindPasteHandler?.(this.plugin);
         }
         this.plugin.updateToggleCommandNames?.();
+        this.plugin.updatePasteStatus?.();
         await this.plugin.saveSettings();
       }));
 
     new Setting(containerEl)
       .setName('Paste output format')
-      .setDesc('Current mode: ' + (this.plugin.settings.pasteOutputMode === 'original-and-converted' ? 'Original + converted' : 'Converted only'))
+      .setDesc(descriptionWithHotkey(
+        'Choose whether to keep the original value alongside the conversion.',
+        'Mod+Shift+O'
+      ))
       .addDropdown(drop => drop
         .addOption('original-and-converted', 'Original + converted')
         .addOption('converted-only', 'Converted only')
         .setValue(this.plugin.settings.pasteOutputMode)
         .onChange(async value => {
           this.plugin.settings.pasteOutputMode = value as any;
+          this.plugin.updateToggleCommandNames?.();
+          this.plugin.updatePasteStatus?.();
+          await this.plugin.saveSettings();
+        })
+      );
+
+    containerEl.createEl('h3', { text: 'Custom liquid measure factors' });
+    containerEl.createEl('p', {
+      text: 'Optional custom milliliters (ml) per unit. Leave a field blank to use the selected US or UK / Imperial factor. Explicit (US), (UK), and (Imperial) input qualifiers always use their standard factors.'
+    });
+    const customLiquidUnits: Array<{ unit: LiquidMeasureUnit; name: string }> = [
+      { unit: 'cup', name: 'Cup (ml)' },
+      { unit: 'fl-oz', name: 'Fluid ounce (ml)' },
+      { unit: 'tsp', name: 'Teaspoon (ml)' },
+      { unit: 'tbsp', name: 'Tablespoon (ml)' },
+      { unit: 'gill', name: 'Gill (ml)' },
+      { unit: 'pt', name: 'Pint (ml)' },
+      { unit: 'qt', name: 'Quart (ml)' },
+      { unit: 'gal', name: 'Gallon (ml)' }
+    ];
+    for (const { unit, name } of customLiquidUnits){
+      new Setting(containerEl)
+        .setName(name)
+        .setDesc('Enter a positive ml value, or leave blank for the selected convention.')
+        .addText(text => {
+          text.inputEl.type = 'number';
+          text.inputEl.min = '0';
+          text.inputEl.step = 'any';
+          text.setPlaceholder('Convention default')
+            .setValue(String(this.plugin.settings.customLiquidMeasureFactors?.[unit] ?? ''))
+            .onChange(async value => {
+              const trimmed = value.trim();
+              this.plugin.settings.customLiquidMeasureFactors ??= {};
+              if (!trimmed) {
+                delete this.plugin.settings.customLiquidMeasureFactors[unit];
+                text.inputEl.setCustomValidity('');
+                await this.plugin.saveSettings();
+                return;
+              }
+              const factor = Number(trimmed);
+              if (!Number.isFinite(factor) || factor <= 0) {
+                text.inputEl.setCustomValidity('Enter a positive ml value.');
+                text.inputEl.reportValidity();
+                return;
+              }
+              text.inputEl.setCustomValidity('');
+              this.plugin.settings.customLiquidMeasureFactors[unit] = factor;
+              await this.plugin.saveSettings();
+            });
+        });
+    }
+
+    new Setting(containerEl)
+      .setName('Reset custom liquid measure factors')
+      .setDesc('Clear all custom factors and use the selected US or UK / Imperial convention.')
+      .addButton(button => button
+        .setButtonText('Reset')
+        .onClick(async () => {
+          this.plugin.settings.customLiquidMeasureFactors = {};
           await this.plugin.saveSettings();
           this.display();
         })
       );
-
-    // rest of settings omitted here for brevity; the main file still controls defaults and behavior
   }
 }

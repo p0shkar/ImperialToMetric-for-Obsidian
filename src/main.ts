@@ -1,5 +1,5 @@
 import { Plugin, Modal, Notice, PluginSettingTab, Setting, MarkdownView } from 'obsidian';
-import { parseNumberUnit, convertOnce, detectSystemFromText } from './convert';
+import { parseNumberUnit, convertOnce, detectSystemFromText, LiquidMeasureFactors } from './convert';
 import { enableHover, disableHover } from './hover';
 import { PromptModal, ImperialMetricSettingTab } from './ui';
 import { registerCommands } from './commands';
@@ -15,6 +15,7 @@ interface ImperialMetricSettings {
   preferredImperialVolumeUnit: 'auto'|'cup'|'pt'|'gal'|'qt'|'fl-oz'|'tbsp'|'tsp'|'gill';
   imperialTonType: 'short'|'metric';
   liquidMeasureType: 'us'|'imperial';
+  customLiquidMeasureFactors: LiquidMeasureFactors;
   inlineHoverEnabled: boolean;
   hoverBackgroundColor: string;
   autoConvertOnPaste: boolean;
@@ -27,11 +28,12 @@ const DEFAULT_SETTINGS: ImperialMetricSettings = {
   hoverDecimals: 2,
   roundingMode: 'fixed-decimals',
   preferredMetricLengthUnit: 'auto',
-  preferredImperialLengthUnit: 'ft',
+  preferredImperialLengthUnit: 'auto',
   preferredImperialMassUnit: 'auto',
   preferredImperialVolumeUnit: 'auto',
   imperialTonType: 'short',
   liquidMeasureType: 'us',
+  customLiquidMeasureFactors: {},
   inlineHoverEnabled: false,
   hoverBackgroundColor: '',
   autoConvertOnPaste: false,
@@ -62,7 +64,7 @@ export default class ImperialMetricPlugin extends Plugin {
 
   convertText(text: string, toSystem: 'metric'|'imperial', decimals?: number){
     const dec = typeof decimals === 'number' ? decimals : this.settings.decimals;
-    return convertOnce(text, toSystem, dec, this.settings.preferredMetricLengthUnit, this.settings.preferredImperialLengthUnit, this.settings.preferredImperialMassUnit, this.settings.preferredImperialVolumeUnit, this.settings.imperialTonType, this.settings.liquidMeasureType, this.settings.roundingMode);
+    return convertOnce(text, toSystem, dec, this.settings.preferredMetricLengthUnit, this.settings.preferredImperialLengthUnit, this.settings.preferredImperialMassUnit, this.settings.preferredImperialVolumeUnit, this.settings.imperialTonType, this.settings.liquidMeasureType, this.settings.roundingMode, this.settings.customLiquidMeasureFactors);
   }
 
   async onload() {

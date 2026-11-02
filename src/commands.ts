@@ -2,7 +2,7 @@ import { detectSystemFromText, formatPasteOutput, resolveTargetSystem } from './
 import { PromptModal } from './ui';
 import { enableHover, disableHover } from './hover';
 import { Notice, MarkdownView } from 'obsidian';
-import { autoConvertPasteCommandName, inlineHoverCommandName, registerEditorMenu } from './editor-menu';
+import { autoConvertPasteCommandName, inlineHoverCommandName, pasteOutputModeCommandName, registerEditorMenu } from './editor-menu';
 
 const PASTE_HANDLER_REGISTRY = (globalThis as any).__imperialMetricPasteHandlers ??= new WeakMap();
 
@@ -41,11 +41,28 @@ export function unbindPasteHandler(plugin: any){
   PASTE_HANDLER_REGISTRY.delete(plugin);
 }
 
+async function setPasteOutputMode(plugin: any, mode: 'original-and-converted'|'converted-only'){
+  plugin.settings.pasteOutputMode = mode;
+  plugin.settings.autoConvertOnPaste = true;
+  bindPasteHandler(plugin);
+  plugin.updateToggleCommandNames?.();
+  await plugin.saveSettings();
+  const format = mode === 'original-and-converted' ? 'Original + converted' : 'Converted only';
+  new Notice(`Auto-convert on paste enabled. Output format: ${format}.`);
+}
+
+async function togglePasteOutputMode(plugin: any){
+  const mode = plugin.settings.pasteOutputMode === 'original-and-converted'
+    ? 'converted-only'
+    : 'original-and-converted';
+  await setPasteOutputMode(plugin, mode);
+}
+
 function convertInput(plugin: any, value: string, choice: 'auto'|'metric'|'imperial' = 'auto'): string | null{
   const detected = detectSystemFromText(value);
   const target = choice === 'auto' ? resolveTargetSystem(detected, 'auto', plugin.settings.defaultTarget) : choice;
   const converted = plugin.convertText(value, target);
-  if (!converted) { new Notice('Could not parse measurement'); return null; }
+  if (!converted) { new Notice('Could not convert: no supported measurement found.'); return null; }
   return converted;
 }
 
@@ -55,21 +72,21 @@ function openConvertInputModal(plugin: any, editor?: any, defaultTarget: 'auto'|
     plugin.app,
     (value, target) => {
       const converted = convertInput(plugin, value, target ?? defaultTarget);
-      if (converted) new Notice(converted);
+      if (converted) new Notice(`Conversion: ${converted}`);
     },
     (value, target) => {
       const converted = convertInput(plugin, value, target ?? defaultTarget);
       if (!converted) return;
-      if (!targetEditor) { new Notice('No active editor to insert into'); return; }
+      if (!targetEditor) { new Notice('No active editor to insert the converted value into.'); return; }
       targetEditor.replaceSelection(converted);
-      new Notice('Converted value inserted');
+      new Notice('Converted value inserted.');
     },
     (value, target) => {
       const converted = convertInput(plugin, value, target ?? defaultTarget);
       if (!converted) return;
-      if (!targetEditor) { new Notice('No active editor to insert into'); return; }
+      if (!targetEditor) { new Notice('No active editor to insert the converted value into.'); return; }
       targetEditor.replaceSelection(formatPasteOutput(value, converted, 'original-and-converted'));
-      new Notice('Original + converted inserted');
+      new Notice('Original and converted values inserted.');
     },
     undefined,
     defaultTarget
@@ -79,30 +96,35 @@ function openConvertInputModal(plugin: any, editor?: any, defaultTarget: 'auto'|
 
 export function registerCommands(plugin: any){
   // Convert input (prompt with explicit target choice)
-  plugin.addCommand({ id: 'convert-input-auto', name: 'Convert input: Auto', hotkeys: [{ modifiers: ['Mod', 'Alt'], key: 'A' }], callback: ()=>{
+  plugin.addCommand({ id: 'convert-input-auto', name: 'Convert input (Auto)', hotkeys: [{ modifiers: ['Mod', 'Alt'], key: 'A' }], callback: ()=>{
     openConvertInputModal(plugin, undefined, 'auto');
   }});
-  plugin.addCommand({ id: 'convert-input-metric', name: 'Convert input: Metric', hotkeys: [{ modifiers: ['Mod', 'Alt'], key: 'M' }], callback: ()=>{
+  plugin.addCommand({ id: 'convert-input-metric', name: 'Convert input (Metric)', hotkeys: [{ modifiers: ['Mod', 'Alt'], key: 'M' }], callback: ()=>{
     openConvertInputModal(plugin, undefined, 'metric');
   }});
-  plugin.addCommand({ id: 'convert-input-imperial', name: 'Convert input: Imperial', hotkeys: [{ modifiers: ['Mod', 'Alt'], key: 'I' }], callback: ()=>{
+  plugin.addCommand({ id: 'convert-input-imperial', name: 'Convert input (Imperial)', hotkeys: [{ modifiers: ['Mod', 'Alt'], key: 'I' }], callback: ()=>{
     openConvertInputModal(plugin, undefined, 'imperial');
+  }});
+  plugin.pasteOutputModeCommand = plugin.addCommand({ id: 'toggle-paste-output-format', name: pasteOutputModeCommandName(plugin.settings.pasteOutputMode), hotkeys: [{ modifiers: ['Mod', 'Shift'], key: 'O' }], callback: async ()=>{
+    await togglePasteOutputMode(plugin);
   }});
 
   plugin.updateToggleCommandNames = () => {
     const prefix = `${plugin.manifest.name}: `;
     if (plugin.inlineHoverCommand) plugin.inlineHoverCommand.name = prefix + inlineHoverCommandName(plugin.inlineHoverEnabled);
     if (plugin.autoConvertPasteCommand) plugin.autoConvertPasteCommand.name = prefix + autoConvertPasteCommandName(plugin.settings.autoConvertOnPaste);
+    if (plugin.pasteOutputModeCommand) plugin.pasteOutputModeCommand.name = prefix + pasteOutputModeCommandName(plugin.settings.pasteOutputMode);
+    plugin.updatePasteStatus?.();
   };
 
   plugin.inlineHoverCommand = plugin.addCommand({ id: 'toggle-inline-previews', name: inlineHoverCommandName(plugin.inlineHoverEnabled), hotkeys: [{ modifiers: ['Mod', 'Shift'], key: 'H' }], callback: async ()=>{
     plugin.inlineHoverEnabled = !plugin.inlineHoverEnabled;
     if (plugin.inlineHoverEnabled){
       enableHover(plugin);
-      new Notice('Inline conversion preview enabled');
+      new Notice('Inline conversion previews enabled.');
     } else {
       disableHover(plugin);
-      new Notice('Inline conversion preview disabled');
+      new Notice('Inline conversion previews disabled.');
     }
     plugin.settings.inlineHoverEnabled = plugin.inlineHoverEnabled;
     plugin.updateToggleCommandNames();
@@ -115,30 +137,31 @@ export function registerCommands(plugin: any){
     if (v) bindPasteHandler(plugin); else unbindPasteHandler(plugin);
     plugin.updateToggleCommandNames();
     await plugin.saveSettings();
-    new Notice(v ? 'Auto-convert on paste enabled' : 'Auto-convert on paste disabled');
+    new Notice(v ? 'Auto-convert on paste enabled.' : 'Auto-convert on paste disabled.');
   }});
 
   registerEditorMenu(plugin, {
     openConvertInputModal: (editor, target) => openConvertInputModal(plugin, editor, target),
     bindPasteHandler: () => bindPasteHandler(plugin),
-    unbindPasteHandler: () => unbindPasteHandler(plugin)
+    unbindPasteHandler: () => unbindPasteHandler(plugin),
+    togglePasteOutputMode: () => togglePasteOutputMode(plugin)
   });
 
   // Selection conversion commands
   plugin.addCommand({ id: 'convert-selection', name: 'Convert selection', hotkeys: [{ modifiers: ['Mod', 'Shift'], key: 'M' }], editorCallback: (editor:any)=>{
-    const sel = editor.getSelection(); if (!sel) { new Notice('No selection to convert'); return; }
+    const sel = editor.getSelection(); if (!sel) { new Notice('Select a measurement to convert.'); return; }
     const detected = detectSystemFromText(sel);
     const target = detected === 'imperial' ? 'metric' : (detected === 'metric' ? 'imperial' : plugin.settings.defaultTarget);
     const converted = plugin.convertText(sel, target as any);
-    if (!converted) { new Notice('Could not parse measurement'); return; }
+    if (!converted) { new Notice('Could not convert: no supported measurement found.'); return; }
     editor.replaceSelection(converted.trim());
   }});
-  plugin.addCommand({ id: 'convert-selection-original-with-conversion', name: 'Convert selection: original + converted', hotkeys: [{ modifiers: ['Mod', 'Alt', 'Shift'], key: 'M' }], editorCallback: (editor:any)=>{
-    const sel = editor.getSelection(); if (!sel) { new Notice('No selection to convert'); return; }
+  plugin.addCommand({ id: 'convert-selection-original-with-conversion', name: 'Convert selection (original + converted)', hotkeys: [{ modifiers: ['Mod', 'Alt', 'Shift'], key: 'M' }], editorCallback: (editor:any)=>{
+    const sel = editor.getSelection(); if (!sel) { new Notice('Select a measurement to convert.'); return; }
     const detected = detectSystemFromText(sel);
     const target = detected === 'imperial' ? 'metric' : (detected === 'metric' ? 'imperial' : plugin.settings.defaultTarget);
     const converted = plugin.convertText(sel, target as any);
-    if (!converted) { new Notice('Could not parse measurement'); return; }
+    if (!converted) { new Notice('Could not convert: no supported measurement found.'); return; }
     const out = `${sel.trim()} (${converted.trim()})`;
     editor.replaceSelection(out);
   }});
